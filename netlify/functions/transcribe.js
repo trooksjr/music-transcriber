@@ -1,10 +1,12 @@
-// We need the 'node-fetch' library to make API calls from our backend function.
-const fetch = require('node-fetch');
-
 // This is our main serverless function.
+// NOTE: We are no longer using require('node-fetch') at the top.
+
 exports.handler = async function(event, context) {
+    // We dynamically import node-fetch inside the function.
+    // This is a more modern and robust way that works better with Netlify's build system.
+    const fetch = (await import('node-fetch')).default;
+
     // 1. SECURELY GET THE API KEY
-    // We access the secret key we stored in Netlify's environment variables.
     const apiKey = process.env.ASSEMBLYAI_API_KEY;
     if (!apiKey) {
         return { statusCode: 500, body: 'AssemblyAI API key not found.' };
@@ -17,13 +19,10 @@ exports.handler = async function(event, context) {
         'content-type': 'application/json'
     };
 
-    // The audio data is sent from the frontend as a base64 encoded string.
-    // We need to parse it from the event body.
     const audioData = JSON.parse(event.body).audio;
 
     // 3. UPLOAD THE FILE AND START TRANSCRIPTION
     try {
-        // First, we upload the user's audio file to AssemblyAI's secure server.
         const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
             method: 'POST',
             headers: { 'authorization': apiKey },
@@ -83,4 +82,4 @@ exports.handler = async function(event, context) {
             body: 'An error occurred during transcription.'
         };
     }
-};
+    };
