@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -76,64 +76,70 @@
         const audioPlayer = document.getElementById('audio-player');
         const transcriptionOutput = document.getElementById('transcription-output');
 
-        // We make this function 'async' so we can use 'await' inside it.
+        // This is a helper function to read the file into a special format called base64
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = error => reject(error);
+        });
+
         fileUpload.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
 
             fileNameDisplay.textContent = file.name;
             
-            // Show loading state and hide other sections
             uploadSection.classList.add('hidden');
             loadingSection.classList.remove('hidden');
             resultsSection.classList.add('hidden');
 
-            // Set up audio player for immediate playback
             const fileURL = URL.createObjectURL(file);
             audioPlayer.src = fileURL;
 
             try {
-                // This is the new part! We're calling our backend function.
-                // 'await' tells the code to pause here until it gets a response.
-                const response = await fetch('/.netlify/functions/transcribe');
+                // Convert the file to a base64 string to send it to the backend
+                const audioBase64 = await toBase64(file);
+
+                // We now send the audio data in the body of the request
+                const response = await fetch('/.netlify/functions/transcribe', {
+                    method: 'POST',
+                    body: JSON.stringify({ audio: audioBase64 })
+                });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
                 }
 
-                // The response body is a stream of text, so we need to parse it as JSON.
                 const data = await response.json();
 
-                // --- Step 7: Display the "Mock" Data ---
-                // We'll build the HTML to display the data we got from the backend.
+                // Build the HTML with the REAL lyrics from the API
                 let html = `
                     <div class="mb-4">
                         <p class="font-semibold text-lg">Lyrics</p>
-                        <p class="text-gray-700">${data.lyrics}</p>
+                        <p class="text-gray-700 whitespace-pre-wrap">${data.lyrics}</p>
                     </div>
                     <div>
                         <p class="font-semibold text-lg">Tabs</p>
                 `;
 
-                // Loop through the array of tab lines and add each one.
                 data.tabs.forEach(line => {
                     html += `<div class="tab-line">${line}</div>`;
                 });
 
-                html += `</div>`; // Close the tabs div
+                html += `</div>`;
 
                 transcriptionOutput.innerHTML = html;
 
-                // Show the results
                 loadingSection.classList.add('hidden');
                 resultsSection.classList.remove('hidden');
 
             } catch (error) {
-                // If something goes wrong, show an error message.
                 console.error("Error fetching transcription:", error);
                 loadingSection.classList.add('hidden');
                 uploadSection.classList.remove('hidden');
-                alert("Sorry, something went wrong. Please try again.");
+                alert(`Sorry, something went wrong. Please try again. Error: ${error.message}`);
             }
         });
     </script>
