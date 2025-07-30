@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -104,6 +104,10 @@
                 // We now send the audio data in the body of the request
                 const response = await fetch('/.netlify/functions/transcribe', {
                     method: 'POST',
+                    // THIS IS THE FIX: We explicitly tell the server we're sending JSON.
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({ audio: audioBase64 })
                 });
                 
