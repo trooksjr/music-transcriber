@@ -16,7 +16,7 @@ exports.handler = async function(event, context) {
     let rawLyrics = "No lyrics found.";
 
     try {
-        // Upload the file to AssemblyAI
+        // This part remains the same: get raw lyrics from AssemblyAI
         const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
             method: 'POST',
             headers: { 'authorization': assemblyaiApiKey },
@@ -29,7 +29,6 @@ exports.handler = async function(event, context) {
             throw new Error('Failed to upload audio file to AssemblyAI.');
         }
 
-        // Submit the file for transcription
         const transcriptResponse = await fetch(assemblyaiEndpoint, {
             method: 'POST',
             headers: { 'authorization': assemblyaiApiKey, 'content-type': 'application/json' },
@@ -37,7 +36,6 @@ exports.handler = async function(event, context) {
         });
         let transcriptData = await transcriptResponse.json();
 
-        // Poll for the result
         while (transcriptData.status !== 'completed' && transcriptData.status !== 'error') {
             await new Promise(resolve => setTimeout(resolve, 2000));
             const pollResponse = await fetch(`${assemblyaiEndpoint}/${transcriptData.id}`, { headers: { 'authorization': assemblyaiApiKey } });
@@ -52,14 +50,13 @@ exports.handler = async function(event, context) {
 
     } catch (error) {
         console.error("Error during AssemblyAI transcription:", error);
-        // We can still try to format if we have some text, otherwise return error
         if (rawLyrics === "No lyrics found.") {
              return { statusCode: 500, body: `An error occurred during transcription: ${error.message}` };
         }
     }
 
 
-    // --- PART 2: FORMAT THE LYRICS WITH GEMINI ---
+    // --- PART 2: FORMAT THE LYRICS WITH GEMINI (WITH BETTER DEBUGGING) ---
     
     let formattedLyrics = rawLyrics; // Default to raw lyrics if formatting fails
 
@@ -83,15 +80,25 @@ exports.handler = async function(event, context) {
 
         if (geminiResponse.ok) {
             const geminiResult = await geminiResponse.json();
-            if (geminiResult.candidates && geminiResult.candidates.length > 0) {
+            // Check more carefully if the expected data is present
+            if (geminiResult.candidates && geminiResult.candidates.length > 0 && geminiResult.candidates[0].content && geminiResult.candidates[0].content.parts && geminiResult.candidates[0].content.parts[0].text) {
                 formattedLyrics = geminiResult.candidates[0].content.parts[0].text;
+            } else {
+                // If the response is OK but the data is not what we expect, add a debug message.
+                console.error("Gemini response OK, but no valid content found.", JSON.stringify(geminiResult));
+                formattedLyrics = `[Formatting failed: Unexpected response from AI]\n\n${rawLyrics}`;
             }
+        } else {
+            // If the response is not OK, log the error and add a debug message.
+            const errorText = await geminiResponse.text();
+            console.error("Gemini API request failed:", errorText);
+            formattedLyrics = `[Formatting failed: API error - ${geminiResponse.status}]\n\n${rawLyrics}`;
         }
-        // If the Gemini call fails for any reason, we'll just fall back to the raw lyrics.
         
     } catch(error) {
+        // If the whole try block fails, add a debug message.
         console.error("Error during Gemini formatting:", error);
-        // Fallback to raw lyrics is already handled by the default value.
+        formattedLyrics = `[Formatting failed: Function error]\n\n${rawLyrics}`;
     }
 
 
