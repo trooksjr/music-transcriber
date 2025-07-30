@@ -56,12 +56,17 @@ exports.handler = async function(event, context) {
     }
 
 
-    // --- PART 2: FORMAT THE LYRICS WITH GEMINI (WITH BETTER DEBUGGING) ---
+    // --- PART 2: FORMAT THE LYRICS WITH GEMINI ---
     
-    let formattedLyrics = rawLyrics; // Default to raw lyrics if formatting fails
+    let formattedLyrics = rawLyrics;
 
     try {
-        const geminiApiKey = ""; // This is handled automatically by the system.
+        // THIS IS THE FIX: We now read the Gemini API key from a secure environment variable.
+        const geminiApiKey = process.env.GEMINI_API_KEY;
+        if (!geminiApiKey) {
+            throw new Error("Gemini API Key not configured in Netlify.");
+        }
+
         const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
 
         const prompt = `Please format the following song lyrics into a standard song structure. Use headings like [Verse], [Chorus], [Bridge], etc. Ensure the output is only the formatted lyrics and nothing else. Here are the lyrics:\n\n${rawLyrics}`;
@@ -80,25 +85,18 @@ exports.handler = async function(event, context) {
 
         if (geminiResponse.ok) {
             const geminiResult = await geminiResponse.json();
-            // Check more carefully if the expected data is present
-            if (geminiResult.candidates && geminiResult.candidates.length > 0 && geminiResult.candidates[0].content && geminiResult.candidates[0].content.parts && geminiResult.candidates[0].content.parts[0].text) {
+            if (geminiResult.candidates && geminiResult.candidates[0].content.parts[0].text) {
                 formattedLyrics = geminiResult.candidates[0].content.parts[0].text;
             } else {
-                // If the response is OK but the data is not what we expect, add a debug message.
-                console.error("Gemini response OK, but no valid content found.", JSON.stringify(geminiResult));
                 formattedLyrics = `[Formatting failed: Unexpected response from AI]\n\n${rawLyrics}`;
             }
         } else {
-            // If the response is not OK, log the error and add a debug message.
-            const errorText = await geminiResponse.text();
-            console.error("Gemini API request failed:", errorText);
             formattedLyrics = `[Formatting failed: API error - ${geminiResponse.status}]\n\n${rawLyrics}`;
         }
         
     } catch(error) {
-        // If the whole try block fails, add a debug message.
         console.error("Error during Gemini formatting:", error);
-        formattedLyrics = `[Formatting failed: Function error]\n\n${rawLyrics}`;
+        formattedLyrics = `[Formatting failed: ${error.message}]\n\n${rawLyrics}`;
     }
 
 
