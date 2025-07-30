@@ -55,13 +55,6 @@
                     <div class="bg-gray-50 rounded-lg p-4 h-96 overflow-y-auto">
                         <div id="transcription-output" class="text-sm">
                             <!-- Transcription will be dynamically inserted here -->
-                            <div class="tab-line">e|-------------------------------------------------|</div>
-                            <div class="tab-line">B|-------------------------------------------------|</div>
-                            <div class="tab-line">G|-------------------------------------------------|</div>
-                            <div class="tab-line">D|-------------------------------------------------|</div>
-                            <div class="tab-line">A|-------------------------------------------------|</div>
-                            <div class="tab-line">E|-------------------------------------------------|</div>
-                            <div class="lyrics-line text-gray-700 mt-2">...</div>
                         </div>
                     </div>
                 </div>
@@ -83,56 +76,77 @@
         const audioPlayer = document.getElementById('audio-player');
         const transcriptionOutput = document.getElementById('transcription-output');
 
-        fileUpload.addEventListener('change', (event) => {
+        // We make this function 'async' so we can use 'await' inside it.
+        fileUpload.addEventListener('change', async (event) => {
             const file = event.target.files[0];
-            if (file) {
-                fileNameDisplay.textContent = file.name;
+            if (!file) return;
+
+            fileNameDisplay.textContent = file.name;
+            
+            // Show loading state and hide other sections
+            uploadSection.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
+
+            // Set up audio player for immediate playback
+            const fileURL = URL.createObjectURL(file);
+            audioPlayer.src = fileURL;
+
+            try {
+                // This is the new part! We're calling our backend function.
+                // 'await' tells the code to pause here until it gets a response.
+                const response = await fetch('/.netlify/functions/transcribe');
                 
-                // Show loading state
-                uploadSection.classList.add('hidden');
-                loadingSection.classList.remove('hidden');
-                resultsSection.classList.add('hidden');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
-                // Set up audio player
-                const fileURL = URL.createObjectURL(file);
-                audioPlayer.src = fileURL;
+                // The response body is a stream of text, so we need to parse it as JSON.
+                const data = await response.json();
 
-                // --- Placeholder for Transcription Logic ---
-                // In a real app, this is where we would send the file to a
-                // backend or a WebAssembly module for processing.
-                // For now, we'll simulate a delay.
-                setTimeout(() => {
-                    loadingSection.classList.add('hidden');
-                    resultsSection.classList.remove('hidden');
-                    
-                    // --- Placeholder for displaying results ---
-                    transcriptionOutput.innerHTML = `
-                        <div class="mb-4">
-                            <p class="font-semibold text-lg">Verse 1</p>
-                            <div class="tab-line">e|-------------------------------------------------|</div>
-                            <div class="tab-line">B|-------------------------------------------------|</div>
-                            <div class="tab-line">G|---------0---------------0---------------0-------|</div>
-                            <div class="tab-line">D|-----2-------2-------2-------2-------2-------2---|</div>
-                            <div class="tab-line">A|-3---------------2---------------0---------------|</div>
-                            <div class="tab-line">E|-------------------------------------------------|</div>
-                            <div class="lyrics-line text-gray-700 mt-2">These are the placeholder lyrics...</div>
-                        </div>
-                        <div class="mb-4">
-                            <p class="font-semibold text-lg">Chorus</p>
-                            <div class="tab-line">e|-------------------------------------------------|</div>
-                            <div class="tab-line">B|---------1---------------0---------------1-------|</div>
-                            <div class="tab-line">G|-----0-------0-------0-------0-------2-------2---|</div>
-                            <div class="tab-line">D|---------------------------------3---------------|</div>
-                            <div class="tab-line">A|-3---------------2-------------------------------|</div>
-                            <div class="tab-line">E|-------------------------------------------------|</div>
-                            <div class="lyrics-line text-gray-700 mt-2">...for our amazing transcriber app.</div>
-                        </div>
-                    `;
+                // --- Step 7: Display the "Mock" Data ---
+                // We'll build the HTML to display the data we got from the backend.
+                let html = `
+                    <div class="mb-4">
+                        <p class="font-semibold text-lg">Lyrics</p>
+                        <p class="text-gray-700">${data.lyrics}</p>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-lg">Tabs</p>
+                `;
 
-                }, 3000); // Simulate 3 second processing time
+                // Loop through the array of tab lines and add each one.
+                data.tabs.forEach(line => {
+                    html += `<div class="tab-line">${line}</div>`;
+                });
+
+                html += `</div>`; // Close the tabs div
+
+                transcriptionOutput.innerHTML = html;
+
+                // Show the results
+                loadingSection.classList.add('hidden');
+                resultsSection.classList.remove('hidden');
+
+            } catch (error) {
+                // If something goes wrong, show an error message.
+                console.error("Error fetching transcription:", error);
+                loadingSection.classList.add('hidden');
+                uploadSection.classList.remove('hidden');
+                alert("Sorry, something went wrong. Please try again.");
             }
         });
     </script>
 
 </body>
 </html>
+```
+
+### **Your Task:**
+
+1.  In VS Code, open your `index.html` file.
+2.  Delete everything that's currently in that file.
+3.  Copy the entire block of updated code from the document above and paste it into your `index.html` file.
+4.  Save the file (`Ctrl+S` or `Cmd+S`).
+
+Once you've done that, we'll push these changes to GitHub, which will update your live site. Then we can test the full, end-to-end experien
